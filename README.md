@@ -115,3 +115,15 @@ AI: I'll list the configured nginx sites.
 ```
 
 This is essentially a smart wrapper around the command line that makes server management more conversational and less error-prone.
+## Getting Started
+
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+2. Copy `.env.example` to `.env` and add your OpenAI API key.
+3. Run the chat CLI:
+```bash
+python cli.py
+```
+

@@ -9,6 +9,13 @@ import openai
 from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
 
+DANGEROUS_PATTERNS = [
+    "rm -rf /",
+    "rm -rf /*",
+    "mkfs",
+    "dd if=",
+]
+
 
 class CortanaResponse(BaseModel):
     explanation: str
@@ -123,10 +130,15 @@ def build_system_prompt(history: list[dict]) -> str:
 
 
 def check_command_rules(command: str, rules: dict) -> str | None:
-    """Return 'block' or 'confirm' if command matches a rule."""
+    """Return 'block', 'danger', or 'confirm' if command matches a rule."""
     for pat in rules.get("blocked", []):
         if pat and pat in command:
             return "block"
+
+    for pat in DANGEROUS_PATTERNS:
+        if pat in command:
+            return "danger"
+
     for pat in rules.get("confirm", []):
         if pat and pat in command:
             return "confirm"
@@ -201,6 +213,13 @@ def main():
             if action == "block":
                 print("Command blocked by safety rules.")
                 continue
+            if action == "danger":
+                extra = input(
+                    "WARNING: Dangerous command detected. Type 'yes' to run anyway: "
+                )
+                if extra.strip().lower() != "yes":
+                    print("Command skipped.")
+                    continue
             if action == "confirm":
                 extra = input(
                     "This command requires extra confirmation. Type 'yes' to proceed: "

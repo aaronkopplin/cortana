@@ -234,3 +234,46 @@ def test_command_execution_records_success(monkeypatch, tmp_path):
         data = json.load(f)
 
     assert data["commands"][-1]["success"] is True
+
+
+def test_dangerous_command_requires_warning(monkeypatch, tmp_path):
+    prefs = tmp_path / "prefs.yaml"
+    prefs.write_text("")
+    safety = tmp_path / "safety.yaml"
+    safety.write_text("")
+    monkeypatch.setenv("CORTANA_SAFETY_RULES", str(safety))
+    monkeypatch.setenv("CORTANA_PREFERENCES", str(prefs))
+    knowledge = tmp_path / "know.json"
+
+    monkeypatch.setattr(cli, "run_command", lambda cmd: ("", True))
+
+    out = run_cli_single_question(
+        monkeypatch,
+        "danger",
+        '{"explanation": "oops", "command": "rm -rf /"}',
+        str(knowledge),
+        extra_inputs=["yes", "n"],
+    )
+
+    assert "Dangerous command detected" in out
+
+
+def test_dangerous_command_blocked(monkeypatch, tmp_path):
+    safety = tmp_path / "safety.yaml"
+    safety.write_text("blocked:\n  - rm -rf")
+    prefs = tmp_path / "prefs.yaml"
+    prefs.write_text("")
+    monkeypatch.setenv("CORTANA_SAFETY_RULES", str(safety))
+    monkeypatch.setenv("CORTANA_PREFERENCES", str(prefs))
+    knowledge = tmp_path / "know.json"
+
+    out = run_cli_single_question(
+        monkeypatch,
+        "danger",
+        '{"explanation": "oops", "command": "rm -rf /"}',
+        str(knowledge),
+        extra_inputs=[],
+    )
+
+    assert "Command blocked by safety rules" in out
+    assert "Dangerous command detected" not in out

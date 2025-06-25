@@ -14,6 +14,7 @@ from planner import (
     save_plan,
     load_plan as load_task_plan,
     execute_plan,
+    interactive_edit_plan,
 )
 
 import openai
@@ -40,9 +41,26 @@ def gather_system_info() -> dict:
     """Collect basic system details."""
     info = {
         "os": platform.platform(),
+        "python_version": platform.python_version(),
+        "disk_free_mb": 0,
+        "memory_total_mb": 0,
         "packages": [],
         "running_services": [],
     }
+
+    # Disk usage and total memory
+    try:
+        disk = shutil.disk_usage("/")
+        info["disk_free_mb"] = disk.free // 1024 // 1024
+    except Exception:
+        pass
+    try:
+        with open("/proc/meminfo", "r", encoding="utf-8") as f:
+            first = f.readline()
+            mem_kb = int(first.split()[1])
+            info["memory_total_mb"] = mem_kb // 1024
+    except Exception:
+        pass
 
     # Attempt to get installed packages using dpkg, rpm, or pip
     if shutil.which("dpkg-query"):
@@ -92,6 +110,8 @@ def load_knowledge(path: str) -> dict:
         data["system"] = gather_system_info()
     if "commands" not in data:
         data["commands"] = []
+    if "stats" not in data:
+        data["stats"] = {}
 
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
@@ -105,6 +125,12 @@ def update_knowledge(
     data.setdefault("commands", []).append(
         {"command": command, "output": output, "success": success}
     )
+    stats = data.setdefault("stats", {})
+    entry = stats.setdefault(command, {"success": 0, "failure": 0})
+    if success:
+        entry["success"] += 1
+    else:
+        entry["failure"] += 1
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
@@ -198,6 +224,8 @@ def run_command(command: str) -> tuple[str, bool]:
             output_lines.append(line)
     process.wait()
     success = process.returncode == 0
+    if not success:
+        print(f"Command exited with code {process.returncode}")
     return "".join(output_lines), success
 
 
@@ -239,12 +267,15 @@ async def run_command_async(command: str) -> tuple[str, bool]:
             output_lines.append(text)
     await process.wait()
     success = process.returncode == 0
+    if not success:
+        print(f"Command exited with code {process.returncode}")
     return "".join(output_lines), success
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Cortana CLI")
     parser.add_argument("--plan", help="Task description to plan and run")
+    parser.add_argument("--edit-plan", action="store_true", help="Interactively edit pending plan")
     return parser.parse_known_args()[0]
 
 
@@ -262,6 +293,9 @@ def main():
     rules = load_rules()
 
     plan_file = "task_plan.json"
+    if args.edit_plan:
+        interactive_edit_plan(plan_file)
+        return
     if args.plan:
         steps = generate_plan(args.plan)
         save_plan(plan_file, steps)
@@ -303,9 +337,10 @@ def main():
         raw = response.choices[0].message["content"].strip()
         try:
             data = CortanaResponse.model_validate_json(raw)
-        except ValidationError:
-            print("Invalid JSON response from AI.")
+        except ValidationError as e:
+            print("Invalid JSON response from AI. Please try rephrasing your request.")
             print(f"AI: {raw}")
+            print(f"Details: {e}")
             messages.append({"role": "assistant", "content": raw})
             continue
 

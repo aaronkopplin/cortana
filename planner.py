@@ -72,3 +72,29 @@ def execute_plan(
             print("Step failed. Stopping execution.")
             break
     return steps
+
+
+def interactive_edit_plan(path: str) -> None:
+    steps = load_plan(path)
+    if not steps:
+        print("No plan found.")
+        return
+    while True:
+        for idx, s in enumerate(steps, 1):
+            print(f"{idx}. {s.description}: {s.command} [{s.status}]")
+        choice = input("Edit step number (enter to finish): ").strip()
+        if not choice:
+            break
+        try:
+            i = int(choice) - 1
+            step = steps[i]
+        except (ValueError, IndexError):
+            print("Invalid step.")
+            continue
+        desc = input(f"Description [{step.description}]: ").strip()
+        cmd = input(f"Command [{step.command}]: ").strip()
+        if desc:
+            step.description = desc
+        if cmd:
+            step.command = cmd
+    save_plan(path, steps)

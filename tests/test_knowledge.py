@@ -91,3 +91,28 @@ def test_edit_file(monkeypatch, tmp_path):
     out, success = cli.run_command("edit file.txt hello")
     assert success
     assert (tmp_path / "file.txt").read_text() == "hello"
+
+
+def test_load_knowledge_includes_stats(monkeypatch, tmp_path):
+    path = tmp_path / "kb.json"
+    monkeypatch.setattr(cli, "gather_system_info", lambda: {"os": "Fake"})
+    data = cli.load_knowledge(str(path))
+    assert "stats" in data
+
+
+def test_update_knowledge_stats(monkeypatch, tmp_path):
+    path = tmp_path / "kb.json"
+    monkeypatch.setattr(cli, "gather_system_info", lambda: {"os": "Fake"})
+    data = cli.load_knowledge(str(path))
+    cli.update_knowledge(str(path), data, "cmd", "", True)
+    cli.update_knowledge(str(path), data, "cmd", "", False)
+    with open(path) as f:
+        saved = json.load(f)
+    assert saved["stats"]["cmd"]["success"] == 1
+    assert saved["stats"]["cmd"]["failure"] == 1
+
+
+def test_run_command_failure_message(capsys):
+    cli.run_command("false")
+    captured = capsys.readouterr().out
+    assert "Command exited with code" in captured

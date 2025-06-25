@@ -289,6 +289,7 @@ def test_invalid_json_response(monkeypatch, tmp_path):
         extra_inputs=[],
     )
     assert "Invalid JSON response from AI." in out
+    assert "rephrasing" in out
     assert "not-json" in out
     with open(knowledge) as f:
         data = json.load(f)

@@ -115,6 +115,17 @@ AI: I'll list the configured nginx sites.
 ```
 
 This is essentially a smart wrapper around the command line that makes server management more conversational and less error-prone.
+
+### Running Commands
+
+When the assistant replies with a command inside a code block, the CLI shows you the command and asks for confirmation:
+
+```
+Command: ls -la
+Execute? (press enter for yes, 'n' for no):
+```
+
+Press **Enter** to run the command and see the live output, or type **n** to skip.
 ## Getting Started
 
 1. Install dependencies:

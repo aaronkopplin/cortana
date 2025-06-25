@@ -279,6 +279,33 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_known_args()[0]
 
 
+def display_plan(steps: list[PlanStep]) -> None:
+    for idx, step in enumerate(steps, 1):
+        status = f" [{step.status}]" if step.status != "pending" else ""
+        print(f"{idx}. {step.description}: {step.command}{status}")
+
+
+def review_plan(task: str, plan_file: str) -> list[PlanStep] | None:
+    steps = generate_plan(task)
+    while True:
+        print("Proposed plan:")
+        display_plan(steps)
+        choice = input(
+            "Approve this plan? (press enter for yes, 'u' to update, 'n' to cancel): "
+        ).strip().lower()
+        if choice in {"", "y", "yes"}:
+            save_plan(plan_file, steps)
+            return steps
+        if choice == "n":
+            print("Plan cancelled.")
+            return None
+        if choice == "u":
+            update = input("Describe the updates: ").strip()
+            if update:
+                task = f"{task}. {update}"
+            steps = generate_plan(task)
+
+
 def main():
     args = parse_args()
     load_dotenv()
@@ -297,16 +324,32 @@ def main():
         interactive_edit_plan(plan_file)
         return
     if args.plan:
-        steps = generate_plan(args.plan)
-        save_plan(plan_file, steps)
-        execute_plan(steps, plan_file, knowledge, knowledge_file, run_command, update_knowledge)
+        steps = review_plan(args.plan, plan_file)
+        if steps:
+            execute_plan(
+                steps,
+                plan_file,
+                knowledge,
+                knowledge_file,
+                run_command,
+                update_knowledge,
+                confirm_each_step=True,
+            )
         return
     if os.path.exists(plan_file):
         steps = load_task_plan(plan_file)
         if any(s.status == "pending" for s in steps):
             resume = input("Resume pending plan? (press enter for yes, 'n' for no): ")
             if resume.strip().lower() != "n":
-                execute_plan(steps, plan_file, knowledge, knowledge_file, run_command, update_knowledge)
+                execute_plan(
+                    steps,
+                    plan_file,
+                    knowledge,
+                    knowledge_file,
+                    run_command,
+                    update_knowledge,
+                    confirm_each_step=True,
+                )
                 return
 
     system_prompt = build_system_prompt(knowledge.get("commands", []))
@@ -321,9 +364,17 @@ def main():
             break
         if user_input.strip().lower().startswith("plan "):
             task = user_input.split(" ", 1)[1]
-            steps = generate_plan(task)
-            save_plan(plan_file, steps)
-            execute_plan(steps, plan_file, knowledge, knowledge_file, run_command, update_knowledge)
+            steps = review_plan(task, plan_file)
+            if steps:
+                execute_plan(
+                    steps,
+                    plan_file,
+                    knowledge,
+                    knowledge_file,
+                    run_command,
+                    update_knowledge,
+                    confirm_each_step=True,
+                )
             continue
         messages.append({"role": "user", "content": user_input})
         try:

@@ -74,3 +74,28 @@ def test_interactive_edit_plan(monkeypatch, tmp_path):
     assert steps[0].description == "desc"
     assert steps[0].command == "newcmd"
 
+
+def test_execute_plan_with_confirmation(monkeypatch, tmp_path):
+    plan_file = tmp_path / "plan.json"
+    steps = [
+        planner.PlanStep(description="one", command="cmd1"),
+        planner.PlanStep(description="two", command="cmd2"),
+    ]
+    planner.save_plan(str(plan_file), steps)
+    knowledge = {"system": {}, "commands": []}
+    monkeypatch.setattr(cli, "run_command", lambda c: ("", True))
+    monkeypatch.setattr(cli, "update_knowledge", lambda *a, **k: None)
+    inputs = iter(["n"])
+    planner.execute_plan(
+        steps,
+        str(plan_file),
+        knowledge,
+        str(tmp_path / "kb.json"),
+        cli.run_command,
+        cli.update_knowledge,
+        confirm_each_step=True,
+        input_fn=lambda _="": next(inputs),
+    )
+    assert steps[0].status == "pending"
+    assert steps[1].status == "pending"
+

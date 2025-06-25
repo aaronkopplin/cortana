@@ -18,6 +18,7 @@ This is a simple AI agent that sits in your terminal and helps with Linux comman
 - AI can run commands for you and show live output
 - Shows generated command preview with simple “yes (enter) / no” approval
 - Always asks permission before running anything potentially risky
+- Responses are structured JSON parsed with Pydantic
 - Captures results and learns from what works/doesn’t work
 
 **Learning System**
@@ -118,9 +119,10 @@ This is essentially a smart wrapper around the command line that makes server ma
 
 ### Running Commands
 
-When the assistant replies with a command inside a code block, the CLI shows you the command and asks for confirmation:
+The assistant responds in JSON with an explanation and a command suggestion. The CLI displays the explanation followed by the command and asks for confirmation:
 
 ```
+AI: List files in the current directory.
 Command: ls -la
 Execute? (press enter for yes, 'n' for no):
 ```

@@ -72,3 +72,22 @@ def test_check_command_rules():
     assert cli.check_command_rules("rm file", {"blocked": ["rm"], "confirm": []}) == "block"
     assert cli.check_command_rules("sudo apt install htop", rules) == "confirm"
     assert cli.check_command_rules("rm -rf /", rules) == "danger"
+
+
+def test_persistent_cd(monkeypatch, tmp_path):
+    cli.CURRENT_DIR = str(tmp_path)
+    out, success = cli.run_command("pwd")
+    assert success
+    assert out.strip() == str(tmp_path)
+    cli.run_command("mkdir sub")
+    cli.run_command("cd sub")
+    out2, success2 = cli.run_command("pwd")
+    assert success2
+    assert out2.strip() == str(tmp_path / "sub")
+
+
+def test_edit_file(monkeypatch, tmp_path):
+    cli.CURRENT_DIR = str(tmp_path)
+    out, success = cli.run_command("edit file.txt hello")
+    assert success
+    assert (tmp_path / "file.txt").read_text() == "hello"

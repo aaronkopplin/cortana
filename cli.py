@@ -6,6 +6,7 @@ import platform
 import shutil
 import asyncio
 import argparse
+import shlex
 
 from planner import (
     PlanStep,
@@ -25,6 +26,9 @@ DANGEROUS_PATTERNS = [
     "mkfs",
     "dd if=",
 ]
+
+# Maintain a persistent current working directory across commands
+CURRENT_DIR = os.getcwd()
 
 
 class CortanaResponse(BaseModel):
@@ -156,13 +160,36 @@ def check_command_rules(command: str, rules: dict) -> str | None:
 
 
 def run_command(command: str) -> tuple[str, bool]:
-    """Run a shell command, stream output, and return its output and success."""
+    """Run a shell command with persistent state and return output and success."""
+    global CURRENT_DIR
+    stripped = command.strip()
+    parts = shlex.split(stripped)
+    if parts and parts[0] == "cd":
+        target = parts[1] if len(parts) > 1 else os.path.expanduser("~")
+        if not os.path.isabs(target):
+            target = os.path.join(CURRENT_DIR, target)
+        if os.path.isdir(target):
+            CURRENT_DIR = os.path.abspath(target)
+            return "", True
+        return f"cd: no such file or directory: {target}", False
+    if parts and parts[0] == "edit":
+        if len(parts) < 3:
+            return "edit usage: edit <file> <content>", False
+        path = parts[1]
+        content = " ".join(parts[2:])
+        if not os.path.isabs(path):
+            path = os.path.join(CURRENT_DIR, path)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return "", True
     process = subprocess.Popen(
         command,
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        cwd=CURRENT_DIR,
     )
     output_lines = []
     if process.stdout:
@@ -176,10 +203,33 @@ def run_command(command: str) -> tuple[str, bool]:
 
 async def run_command_async(command: str) -> tuple[str, bool]:
     """Asynchronously run a shell command and stream output."""
+    global CURRENT_DIR
+    stripped = command.strip()
+    parts = shlex.split(stripped)
+    if parts and parts[0] == "cd":
+        target = parts[1] if len(parts) > 1 else os.path.expanduser("~")
+        if not os.path.isabs(target):
+            target = os.path.join(CURRENT_DIR, target)
+        if os.path.isdir(target):
+            CURRENT_DIR = os.path.abspath(target)
+            return "", True
+        return f"cd: no such file or directory: {target}", False
+    if parts and parts[0] == "edit":
+        if len(parts) < 3:
+            return "edit usage: edit <file> <content>", False
+        path = parts[1]
+        content = " ".join(parts[2:])
+        if not os.path.isabs(path):
+            path = os.path.join(CURRENT_DIR, path)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return "", True
     process = await asyncio.create_subprocess_shell(
         command,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
+        cwd=CURRENT_DIR,
     )
     output_lines: list[str] = []
     if process.stdout:
@@ -235,6 +285,12 @@ def main():
             break
         if user_input.strip().lower() in {"exit", "quit"}:
             break
+        if user_input.strip().lower().startswith("plan "):
+            task = user_input.split(" ", 1)[1]
+            steps = generate_plan(task)
+            save_plan(plan_file, steps)
+            execute_plan(steps, plan_file, knowledge, knowledge_file, run_command, update_knowledge)
+            continue
         messages.append({"role": "user", "content": user_input})
         try:
             response = openai.ChatCompletion.create(

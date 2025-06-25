@@ -39,3 +39,26 @@ def test_execute_plan_failure(monkeypatch, tmp_path):
     assert steps[0].status == "done"
     assert steps[1].status == "failed"
 
+
+def test_execute_plan_with_cd_and_edit(tmp_path, monkeypatch):
+    cli.CURRENT_DIR = str(tmp_path)
+    plan_file = tmp_path / "plan.json"
+    steps = [
+        planner.PlanStep(description="make", command="mkdir sub"),
+        planner.PlanStep(description="enter", command="cd sub"),
+        planner.PlanStep(description="write", command="edit hi.txt hi"),
+        planner.PlanStep(description="show", command="cat hi.txt"),
+    ]
+    planner.save_plan(str(plan_file), steps)
+    knowledge = {"system": {}, "commands": []}
+    planner.execute_plan(
+        steps,
+        str(plan_file),
+        knowledge,
+        str(tmp_path / "kb.json"),
+        cli.run_command,
+        lambda *a, **k: None,
+    )
+    assert (tmp_path / "sub" / "hi.txt").read_text() == "hi"
+    assert steps[3].output.strip() == "hi"
+

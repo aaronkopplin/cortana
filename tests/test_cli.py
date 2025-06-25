@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Fake openai module so cli can import
 fake_openai = types.SimpleNamespace(ChatCompletion=types.SimpleNamespace())
-sys.modules['openai'] = fake_openai
+sys.modules["openai"] = fake_openai
 
 import cli
 
@@ -24,7 +24,9 @@ class FakeResponse:
         self.choices = [types.SimpleNamespace(message={"content": content})]
 
 
-def run_cli_single_question(monkeypatch, question: str, reply: str, knowledge_file: str, extra_inputs=None) -> str:
+def run_cli_single_question(
+    monkeypatch, question: str, reply: str, knowledge_file: str, extra_inputs=None
+) -> str:
     inputs_list = [question]
     if extra_inputs:
         inputs_list.extend(extra_inputs)
@@ -58,7 +60,9 @@ def extract_command(text: str) -> str | None:
     return None
 
 
-def assert_command_response(monkeypatch, question: str, reply: str, valid_commands=None):
+def assert_command_response(
+    monkeypatch, question: str, reply: str, valid_commands=None
+):
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         path = tmp.name
     out = run_cli_single_question(monkeypatch, question, reply, path)
@@ -161,13 +165,14 @@ def test_command_responses(monkeypatch, question, reply, commands):
 
 
 def test_very_long_prompt(monkeypatch):
-    question = (
-        "cortana I need to find a very specific file that I downloaded last week and I think it was called something like report_final_v2_draft.docx but I'm not entirely sure and I need to move it to a different directory after I find it and then maybe I need to rename it to something simpler like final_report.docx and also I want to make a backup of it before I do anything else with it so please tell me all the commands for that because I am very confused about it all and this is a very long question."
+    question = "cortana I need to find a very specific file that I downloaded last week and I think it was called something like report_final_v2_draft.docx but I'm not entirely sure and I need to move it to a different directory after I find it and then maybe I need to rename it to something simpler like final_report.docx and also I want to make a backup of it before I do anything else with it so please tell me all the commands for that because I am very confused about it all and this is a very long question."
+    reply = '{"explanation": "That\'s a multi-step task. First, search for the file with find.", "command": "find ~/Downloads -name \'report_final_v2_draft.docx\'"}'
+    assert_command_response(
+        monkeypatch,
+        question,
+        reply,
+        ["find ~/Downloads -name 'report_final_v2_draft.docx'", "find"],
     )
-    reply = (
-        '{"explanation": "That\'s a multi-step task. First, search for the file with find.", "command": "find ~/Downloads -name \'report_final_v2_draft.docx\'"}'
-    )
-    assert_command_response(monkeypatch, question, reply, ["find ~/Downloads -name 'report_final_v2_draft.docx'", "find"])
 
 
 def test_blocked_command(monkeypatch, tmp_path):
@@ -204,3 +209,28 @@ def test_confirm_command(monkeypatch, tmp_path):
         extra_inputs=["yes", "n"],
     )
     assert "requires extra confirmation" in out
+
+
+def test_command_execution_records_success(monkeypatch, tmp_path):
+    prefs = tmp_path / "prefs.yaml"
+    prefs.write_text("")
+    safety = tmp_path / "safety.yaml"
+    safety.write_text("")
+    monkeypatch.setenv("CORTANA_SAFETY_RULES", str(safety))
+    monkeypatch.setenv("CORTANA_PREFERENCES", str(prefs))
+    knowledge = tmp_path / "know.json"
+
+    monkeypatch.setattr(cli, "run_command", lambda cmd: ("hi\n", True))
+
+    out = run_cli_single_question(
+        monkeypatch,
+        "run it",
+        '{"explanation": "test", "command": "echo hi"}',
+        str(knowledge),
+        extra_inputs=[""],
+    )
+
+    with open(knowledge) as f:
+        data = json.load(f)
+
+    assert data["commands"][-1]["success"] is True

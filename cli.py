@@ -77,9 +77,13 @@ def load_knowledge(path: str) -> dict:
     return data
 
 
-def update_knowledge(path: str, data: dict, command: str, output: str) -> None:
+def update_knowledge(
+    path: str, data: dict, command: str, output: str, success: bool
+) -> None:
     """Append command execution result to knowledge base."""
-    data.setdefault("commands", []).append({"command": command, "output": output})
+    data.setdefault("commands", []).append(
+        {"command": command, "output": output, "success": success}
+    )
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
@@ -101,6 +105,23 @@ def load_rules() -> dict:
     return rules
 
 
+def build_system_prompt(history: list[dict]) -> str:
+    """Generate the system prompt including recent command history."""
+    prompt = (
+        "You are Cortana, a helpful assistant that suggests shell commands for"
+        " server management. Respond ONLY in JSON with two keys: 'explanation'"
+        " (a short to medium length answer) and 'command' (the suggested shell"
+        " command)."
+    )
+    if history:
+        entries = []
+        for h in history[-5:]:
+            status = "ok" if h.get("success") else "failed"
+            entries.append(f"{h.get('command')} ({status})")
+        prompt += " Recent command history: " + "; ".join(entries)
+    return prompt
+
+
 def check_command_rules(command: str, rules: dict) -> str | None:
     """Return 'block' or 'confirm' if command matches a rule."""
     for pat in rules.get("blocked", []):
@@ -111,8 +132,9 @@ def check_command_rules(command: str, rules: dict) -> str | None:
             return "confirm"
     return None
 
-def run_command(command: str) -> str:
-    """Run a shell command, stream output, and return it."""
+
+def run_command(command: str) -> tuple[str, bool]:
+    """Run a shell command, stream output, and return its output and success."""
     process = subprocess.Popen(
         command,
         shell=True,
@@ -126,7 +148,8 @@ def run_command(command: str) -> str:
             print(line, end="")
             output_lines.append(line)
     process.wait()
-    return "".join(output_lines)
+    success = process.returncode == 0
+    return "".join(output_lines), success
 
 
 def main():
@@ -141,15 +164,8 @@ def main():
     knowledge = load_knowledge(knowledge_file)
     rules = load_rules()
 
-    system_prompt = (
-        "You are Cortana, a helpful assistant that suggests shell commands for"
-        " server management. Respond ONLY in JSON with two keys: 'explanation'"
-        " (a short to medium length answer) and 'command' (the suggested shell"
-        " command)."
-    )
-    messages = [
-        {"role": "system", "content": system_prompt}
-    ]
+    system_prompt = build_system_prompt(knowledge.get("commands", []))
+    messages = [{"role": "system", "content": system_prompt}]
     print("Type 'exit' to quit")
     while True:
         try:
@@ -195,8 +211,14 @@ def main():
             approve = input("Execute? (press enter for yes, 'n' for no): ")
             if approve.strip().lower() != "n":
                 print(f"Running: {command}")
-                output = run_command(command)
-                update_knowledge(knowledge_file, knowledge, command, output)
+                output, success = run_command(command)
+                update_knowledge(knowledge_file, knowledge, command, output, success)
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": f"Executed command: {command}\nSuccess: {success}\nOutput:\n{output}",
+                    }
+                )
             else:
                 print("Command skipped.")
 

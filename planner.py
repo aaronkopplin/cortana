@@ -55,6 +55,8 @@ def execute_plan(
     knowledge_path: str,
     run_command_fn,
     update_knowledge_fn,
+    confirm_each_step: bool = False,
+    input_fn=input,
 ) -> List[PlanStep]:
     """Run each pending step sequentially."""
     for step in steps:
@@ -62,6 +64,13 @@ def execute_plan(
             continue
         print(f"Step: {step.description}")
         print(f"Command: {step.command}")
+        if confirm_each_step:
+            ans = input_fn("Run this command? (press enter for yes, 'n' to skip): ").strip().lower()
+            if ans == "n":
+                print("Step declined. Pausing plan.")
+                step.status = "pending"
+                save_plan(plan_path, steps)
+                break
         output, success = run_command_fn(step.command)
         step.output = output
         step.success = success

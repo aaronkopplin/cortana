@@ -17,6 +17,8 @@ This is a simple AI agent that sits in your terminal and helps with Linux comman
 
 - AI can run commands for you and show live output
 - Shows generated command preview with simple “yes (enter) / no” approval
+- Steps in an automation plan also require approval before running
+- Declining a step pauses the plan so it can be resumed or edited later
 - Always asks permission before running anything potentially risky
 - Responses are structured JSON parsed with Pydantic
 - Captures results and learns from what works/doesn’t work
@@ -24,6 +26,7 @@ This is a simple AI agent that sits in your terminal and helps with Linux comman
 - Maintains the current working directory across commands
 - Built-in `edit` command to modify files from the CLI
 - Multi-step automation plans via the `plan` keyword or `--plan` option
+- Plans are shown for approval and can be updated before execution
 
 **Learning System**
 

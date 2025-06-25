@@ -2,6 +2,7 @@ import json
 import sys
 import types
 import os
+import builtins
 
 import pytest
 
@@ -61,4 +62,15 @@ def test_execute_plan_with_cd_and_edit(tmp_path, monkeypatch):
     )
     assert (tmp_path / "sub" / "hi.txt").read_text() == "hi"
     assert steps[3].output.strip() == "hi"
+
+
+def test_interactive_edit_plan(monkeypatch, tmp_path):
+    path = tmp_path / "plan.json"
+    planner.save_plan(str(path), [planner.PlanStep(description="one", command="cmd")])
+    inputs = iter(["1", "desc", "newcmd", ""])
+    monkeypatch.setattr(builtins, "input", lambda _="": next(inputs))
+    planner.interactive_edit_plan(str(path))
+    steps = planner.load_plan(str(path))
+    assert steps[0].description == "desc"
+    assert steps[0].command == "newcmd"
 

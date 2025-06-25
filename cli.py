@@ -4,6 +4,7 @@ import json
 import yaml
 import platform
 import shutil
+import asyncio
 
 import openai
 from dotenv import load_dotenv
@@ -164,6 +165,24 @@ def run_command(command: str) -> tuple[str, bool]:
     return "".join(output_lines), success
 
 
+async def run_command_async(command: str) -> tuple[str, bool]:
+    """Asynchronously run a shell command and stream output."""
+    process = await asyncio.create_subprocess_shell(
+        command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    output_lines: list[str] = []
+    if process.stdout:
+        async for line in process.stdout:
+            text = line.decode()
+            print(text, end="")
+            output_lines.append(text)
+    await process.wait()
+    success = process.returncode == 0
+    return "".join(output_lines), success
+
+
 def main():
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
@@ -199,6 +218,7 @@ def main():
         try:
             data = CortanaResponse.model_validate_json(raw)
         except ValidationError:
+            print("Invalid JSON response from AI.")
             print(f"AI: {raw}")
             messages.append({"role": "assistant", "content": raw})
             continue

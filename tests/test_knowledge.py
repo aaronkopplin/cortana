@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Ensure cli imports without real openai dependency
 fake_openai = types.SimpleNamespace()
-sys.modules.setdefault('openai', fake_openai)
+sys.modules.setdefault("openai", fake_openai)
 
 import cli
 
@@ -40,8 +40,19 @@ def test_update_knowledge_appends_command(tmp_path, monkeypatch):
     path = tmp_path / "kb.json"
     monkeypatch.setattr(cli, "gather_system_info", lambda: {"os": "FakeOS"})
     data = cli.load_knowledge(str(path))
-    cli.update_knowledge(str(path), data, "echo hi", "hi\n")
+    cli.update_knowledge(str(path), data, "echo hi", "hi\n", True)
     with open(path) as f:
         saved = json.load(f)
-    assert saved["commands"][-1] == {"command": "echo hi", "output": "hi\n"}
+    assert saved["commands"][-1] == {
+        "command": "echo hi",
+        "output": "hi\n",
+        "success": True,
+    }
 
+
+def test_run_command_success_and_failure():
+    out, success = cli.run_command("echo test")
+    assert success
+    assert out.strip() == "test"
+    out2, success2 = cli.run_command("false")
+    assert not success2

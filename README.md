@@ -20,11 +20,13 @@ This is a simple AI agent that sits in your terminal and helps with Linux comman
 - Always asks permission before running anything potentially risky
 - Responses are structured JSON parsed with Pydantic
 - Captures results and learns from what works/doesn’t work
+- Tracks command success or failure to refine future suggestions
 
 **Learning System**
 
 - Keeps a knowledge file about your server (OS, installed packages, configurations)
 - Remembers successful setups and configurations
+- Records command outcomes (success or failure) in the knowledge base
 - Updates its understanding as it discovers new things about your system
 
 **Safety Controls**

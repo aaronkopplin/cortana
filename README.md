@@ -32,7 +32,7 @@ This is a simple AI agent that sits in your terminal and helps with Linux comman
 **Safety Controls**
 
 - Rules file that you can edit to set boundaries
-- Built-in safety checks for dangerous commands
+- Built-in safety checks for dangerous commands (e.g. detects `rm -rf /`)
 - Always shows you what it’s about to run before executing
 
 ## Main Use Case

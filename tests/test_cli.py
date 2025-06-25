@@ -277,3 +277,19 @@ def test_dangerous_command_blocked(monkeypatch, tmp_path):
 
     assert "Command blocked by safety rules" in out
     assert "Dangerous command detected" not in out
+
+
+def test_invalid_json_response(monkeypatch, tmp_path):
+    knowledge = tmp_path / "kb.json"
+    out = run_cli_single_question(
+        monkeypatch,
+        "hello",
+        "not-json",
+        str(knowledge),
+        extra_inputs=[],
+    )
+    assert "Invalid JSON response from AI." in out
+    assert "not-json" in out
+    with open(knowledge) as f:
+        data = json.load(f)
+    assert data["commands"] == []

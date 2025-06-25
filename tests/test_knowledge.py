@@ -3,6 +3,7 @@ import json
 import sys
 import types
 import tempfile
+import asyncio
 
 import pytest
 
@@ -56,3 +57,18 @@ def test_run_command_success_and_failure():
     assert out.strip() == "test"
     out2, success2 = cli.run_command("false")
     assert not success2
+
+
+def test_run_command_async_success_and_failure():
+    out, success = asyncio.run(cli.run_command_async("echo async"))
+    assert success
+    assert out.strip() == "async"
+    out2, success2 = asyncio.run(cli.run_command_async("false"))
+    assert not success2
+
+
+def test_check_command_rules():
+    rules = {"blocked": [], "confirm": ["apt install"]}
+    assert cli.check_command_rules("rm file", {"blocked": ["rm"], "confirm": []}) == "block"
+    assert cli.check_command_rules("sudo apt install htop", rules) == "confirm"
+    assert cli.check_command_rules("rm -rf /", rules) == "danger"

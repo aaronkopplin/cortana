@@ -5,6 +5,15 @@ import yaml
 import platform
 import shutil
 import asyncio
+import argparse
+
+from planner import (
+    PlanStep,
+    generate_plan,
+    save_plan,
+    load_plan as load_task_plan,
+    execute_plan,
+)
 
 import openai
 from dotenv import load_dotenv
@@ -183,7 +192,14 @@ async def run_command_async(command: str) -> tuple[str, bool]:
     return "".join(output_lines), success
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Cortana CLI")
+    parser.add_argument("--plan", help="Task description to plan and run")
+    return parser.parse_known_args()[0]
+
+
 def main():
+    args = parse_args()
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -194,6 +210,20 @@ def main():
     knowledge_file = os.getenv("CORTANA_KNOWLEDGE_FILE", "server_knowledge.json")
     knowledge = load_knowledge(knowledge_file)
     rules = load_rules()
+
+    plan_file = "task_plan.json"
+    if args.plan:
+        steps = generate_plan(args.plan)
+        save_plan(plan_file, steps)
+        execute_plan(steps, plan_file, knowledge, knowledge_file, run_command, update_knowledge)
+        return
+    if os.path.exists(plan_file):
+        steps = load_task_plan(plan_file)
+        if any(s.status == "pending" for s in steps):
+            resume = input("Resume pending plan? (press enter for yes, 'n' for no): ")
+            if resume.strip().lower() != "n":
+                execute_plan(steps, plan_file, knowledge, knowledge_file, run_command, update_knowledge)
+                return
 
     system_prompt = build_system_prompt(knowledge.get("commands", []))
     messages = [{"role": "system", "content": system_prompt}]

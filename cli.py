@@ -1,18 +1,15 @@
 import os
-import re
 import subprocess
+import json
 
 import openai
 from dotenv import load_dotenv
+from pydantic import BaseModel, ValidationError
 
 
-def extract_command(text: str) -> str | None:
-    """Extract the first shell command found in a fenced code block."""
-    match = re.search(r"```(?:bash\n)?([^`]+)```", text, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return None
-
+class CortanaResponse(BaseModel):
+    explanation: str
+    command: str
 
 def run_command(command: str) -> None:
     """Run a shell command and stream output."""
@@ -39,8 +36,9 @@ def main():
 
     system_prompt = (
         "You are Cortana, a helpful assistant that suggests shell commands for"
-        " server management. When you provide a command, put only the command"
-        " itself inside a fenced code block."
+        " server management. Respond ONLY in JSON with two keys: 'explanation'"
+        " (a short to medium length answer) and 'command' (the suggested shell"
+        " command)."
     )
     messages = [
         {"role": "system", "content": system_prompt}
@@ -62,11 +60,18 @@ def main():
         except Exception as e:
             print(f"Error: {e}")
             break
-        reply = response.choices[0].message["content"].strip()
-        print(f"AI: {reply}")
-        messages.append({"role": "assistant", "content": reply})
+        raw = response.choices[0].message["content"].strip()
+        try:
+            data = CortanaResponse.model_validate_json(raw)
+        except ValidationError:
+            print(f"AI: {raw}")
+            messages.append({"role": "assistant", "content": raw})
+            continue
 
-        command = extract_command(reply)
+        print(f"AI: {data.explanation}")
+        messages.append({"role": "assistant", "content": raw})
+
+        command = data.command
         if command:
             print(f"\nCommand: {command}")
             approve = input("Execute? (press enter for yes, 'n' for no): ")

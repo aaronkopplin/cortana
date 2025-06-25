@@ -24,9 +24,20 @@ class FakeResponse:
         self.choices = [types.SimpleNamespace(message={"content": content})]
 
 
-def run_cli_single_question(monkeypatch, question: str, reply: str, knowledge_file: str) -> str:
-    inputs = iter([question, "n", "exit"])
-    monkeypatch.setattr(builtins, "input", lambda _: next(inputs))
+def run_cli_single_question(monkeypatch, question: str, reply: str, knowledge_file: str, extra_inputs=None) -> str:
+    inputs_list = [question]
+    if extra_inputs:
+        inputs_list.extend(extra_inputs)
+    else:
+        inputs_list.append("n")
+    inputs_list.append("exit")
+    inputs = iter(inputs_list)
+
+    def fake_input(prompt=""):
+        print(prompt, end="")
+        return next(inputs)
+
+    monkeypatch.setattr(builtins, "input", fake_input)
     monkeypatch.setenv("OPENAI_API_KEY", "test")
     monkeypatch.setenv("CORTANA_KNOWLEDGE_FILE", knowledge_file)
 
@@ -157,3 +168,39 @@ def test_very_long_prompt(monkeypatch):
         '{"explanation": "That\'s a multi-step task. First, search for the file with find.", "command": "find ~/Downloads -name \'report_final_v2_draft.docx\'"}'
     )
     assert_command_response(monkeypatch, question, reply, ["find ~/Downloads -name 'report_final_v2_draft.docx'", "find"])
+
+
+def test_blocked_command(monkeypatch, tmp_path):
+    safety = tmp_path / "safety.yaml"
+    safety.write_text("blocked:\n  - rm ")
+    prefs = tmp_path / "prefs.yaml"
+    prefs.write_text("")
+    monkeypatch.setenv("CORTANA_SAFETY_RULES", str(safety))
+    monkeypatch.setenv("CORTANA_PREFERENCES", str(prefs))
+    knowledge = tmp_path / "know.json"
+    out = run_cli_single_question(
+        monkeypatch,
+        "delete file",
+        '{"explanation": "Remove file", "command": "rm temp.log"}',
+        str(knowledge),
+        extra_inputs=[],
+    )
+    assert "Command blocked by safety rules" in out
+
+
+def test_confirm_command(monkeypatch, tmp_path):
+    prefs = tmp_path / "prefs.yaml"
+    prefs.write_text("confirm:\n  - apt install")
+    safety = tmp_path / "safety.yaml"
+    safety.write_text("")
+    monkeypatch.setenv("CORTANA_SAFETY_RULES", str(safety))
+    monkeypatch.setenv("CORTANA_PREFERENCES", str(prefs))
+    knowledge = tmp_path / "know.json"
+    out = run_cli_single_question(
+        monkeypatch,
+        "install package",
+        '{"explanation": "Install", "command": "sudo apt install htop"}',
+        str(knowledge),
+        extra_inputs=["yes", "n"],
+    )
+    assert "requires extra confirmation" in out

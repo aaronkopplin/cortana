@@ -3,6 +3,8 @@ import io
 import os
 import sys
 import types
+import tempfile
+import json
 from unittest.mock import patch
 
 import pytest
@@ -22,10 +24,11 @@ class FakeResponse:
         self.choices = [types.SimpleNamespace(message={"content": content})]
 
 
-def run_cli_single_question(monkeypatch, question: str, reply: str) -> str:
+def run_cli_single_question(monkeypatch, question: str, reply: str, knowledge_file: str) -> str:
     inputs = iter([question, "n", "exit"])
     monkeypatch.setattr(builtins, "input", lambda _: next(inputs))
     monkeypatch.setenv("OPENAI_API_KEY", "test")
+    monkeypatch.setenv("CORTANA_KNOWLEDGE_FILE", knowledge_file)
 
     def fake_create(**_kwargs):
         return FakeResponse(reply)
@@ -45,7 +48,13 @@ def extract_command(text: str) -> str | None:
 
 
 def assert_command_response(monkeypatch, question: str, reply: str, valid_commands=None):
-    out = run_cli_single_question(monkeypatch, question, reply)
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        path = tmp.name
+    out = run_cli_single_question(monkeypatch, question, reply, path)
+    with open(path) as f:
+        data = json.load(f)
+    assert "system" in data
+    assert "commands" in data
     assert "AI:" in out
     response_text = out.split("AI:", 1)[1].strip()
     cmd = extract_command(response_text)

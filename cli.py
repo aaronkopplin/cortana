@@ -1,6 +1,7 @@
 import os
 import subprocess
 import json
+import yaml
 import platform
 import shutil
 
@@ -82,6 +83,34 @@ def update_knowledge(path: str, data: dict, command: str, output: str) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
+
+def load_rules() -> dict:
+    """Load safety and preference rules from YAML files."""
+    safety_path = os.getenv("CORTANA_SAFETY_RULES", "safety_rules.yaml")
+    prefs_path = os.getenv("CORTANA_PREFERENCES", "preferences.yaml")
+    rules = {"blocked": [], "confirm": []}
+    for path in [safety_path, prefs_path]:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f) or {}
+                rules["blocked"].extend(data.get("blocked", []))
+                rules["confirm"].extend(data.get("confirm", []))
+            except Exception:
+                continue
+    return rules
+
+
+def check_command_rules(command: str, rules: dict) -> str | None:
+    """Return 'block' or 'confirm' if command matches a rule."""
+    for pat in rules.get("blocked", []):
+        if pat and pat in command:
+            return "block"
+    for pat in rules.get("confirm", []):
+        if pat and pat in command:
+            return "confirm"
+    return None
+
 def run_command(command: str) -> str:
     """Run a shell command, stream output, and return it."""
     process = subprocess.Popen(
@@ -110,6 +139,7 @@ def main():
 
     knowledge_file = os.getenv("CORTANA_KNOWLEDGE_FILE", "server_knowledge.json")
     knowledge = load_knowledge(knowledge_file)
+    rules = load_rules()
 
     system_prompt = (
         "You are Cortana, a helpful assistant that suggests shell commands for"
@@ -151,6 +181,17 @@ def main():
         command = data.command
         if command:
             print(f"\nCommand: {command}")
+            action = check_command_rules(command, rules)
+            if action == "block":
+                print("Command blocked by safety rules.")
+                continue
+            if action == "confirm":
+                extra = input(
+                    "This command requires extra confirmation. Type 'yes' to proceed: "
+                )
+                if extra.strip().lower() != "yes":
+                    print("Command skipped.")
+                    continue
             approve = input("Execute? (press enter for yes, 'n' for no): ")
             if approve.strip().lower() != "n":
                 print(f"Running: {command}")

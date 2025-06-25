@@ -35,21 +35,6 @@ This is a simple AI agent that sits in your terminal and helps with Linux comman
 - Built-in safety checks for dangerous commands (e.g. detects `rm -rf /`)
 - Always shows you what it’s about to run before executing
 
-## Main Use Case
-
-Setting up a new nginx/PM2 website hosting setup. Instead of googling nginx config syntax and PM2 commands, you’d just say:
-
-“Set up a new website for mydomain.com with nginx and PM2”
-
-The agent would:
-
-- Check your current nginx setup
-- Generate the virtual host configuration
-- Set up SSL certificates
-- Configure PM2 for your app
-- Handle firewall rules
-- Walk you through each step
-
 ## Technical Approach
 
 **Knowledge Base**
@@ -66,7 +51,6 @@ The agent would:
 
 **Architecture**
 
-- Python-based with async command execution
 - Integrates with AI APIs (OpenAI, Claude, etc.)
 - Local knowledge storage
 - Real-time command output streaming
@@ -75,13 +59,10 @@ The agent would:
 
 **Phase 1**: Basic chat interface, simple command execution, basic knowledge storage
 
-**Phase 2**: Add the nginx/PM2 automation, improve safety rules, better learning
-
 **Phase 3**: More complex multi-step automations, better error handling
 
 ## Why This Is Useful
 
-- Bridges the gap between knowing what you want and knowing the exact commands
 - Reduces context switching between terminal and documentation
 - Builds up institutional knowledge about your specific server setup
 - Makes complex tasks more approachable for less experienced users

@@ -28,6 +28,28 @@ DANGEROUS_PATTERNS = [
     "dd if=",
 ]
 
+# Built-in list of commands considered safe enough to run without asking
+DEFAULT_AUTO_COMMANDS = [
+    "ls",
+    "pwd",
+    "cd",
+    "cat",
+    "head",
+    "tail",
+    "cp",
+    "mv",
+    "touch",
+    "mkdir",
+    "grep",
+    "find",
+    "whoami",
+    "date",
+    "uptime",
+]
+
+# Path to optional whitelist file similar to .gitignore
+DEFAULT_WHITELIST_PATH = ".cortanaignore"
+
 # Maintain a persistent current working directory across commands
 CURRENT_DIR = os.getcwd()
 
@@ -158,10 +180,13 @@ def update_knowledge(
 
 
 def load_rules() -> dict:
-    """Load safety and preference rules from YAML files."""
+    """Load safety and preference rules from YAML files and whitelist."""
     safety_path = os.getenv("CORTANA_SAFETY_RULES", "safety_rules.yaml")
     prefs_path = os.getenv("CORTANA_PREFERENCES", "preferences.yaml")
-    rules = {"blocked": [], "confirm": []}
+    whitelist_path = os.getenv("CORTANA_WHITELIST", DEFAULT_WHITELIST_PATH)
+
+    rules = {"blocked": [], "confirm": [], "auto": DEFAULT_AUTO_COMMANDS.copy()}
+
     for path in [safety_path, prefs_path]:
         if os.path.exists(path):
             try:
@@ -169,8 +194,24 @@ def load_rules() -> dict:
                     data = yaml.safe_load(f) or {}
                 rules["blocked"].extend(data.get("blocked", []))
                 rules["confirm"].extend(data.get("confirm", []))
+                rules["auto"].extend(
+                    data.get("auto", []) or data.get("whitelist", []) or []
+                )
             except Exception:
                 continue
+
+    if os.path.exists(whitelist_path):
+        try:
+            with open(whitelist_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    cmd = line.strip()
+                    if cmd and not cmd.startswith("#"):
+                        rules["auto"].append(cmd)
+        except Exception:
+            pass
+
+    # Remove duplicates while preserving order
+    rules["auto"] = list(dict.fromkeys(rules["auto"]))
     return rules
 
 
@@ -203,7 +244,7 @@ def build_system_prompt(history: list[dict], knowledge: dict) -> str:
 
 
 def check_command_rules(command: str, rules: dict) -> str | None:
-    """Return 'block', 'danger', or 'confirm' if command matches a rule."""
+    """Return 'block', 'danger', 'confirm', or 'auto' if command matches a rule."""
     for pat in rules.get("blocked", []):
         if pat and pat in command:
             return "block"
@@ -215,6 +256,10 @@ def check_command_rules(command: str, rules: dict) -> str | None:
     for pat in rules.get("confirm", []):
         if pat and pat in command:
             return "confirm"
+
+    parts = shlex.split(command)
+    if parts and parts[0] in rules.get("auto", []):
+        return "auto"
     return None
 
 
@@ -457,7 +502,12 @@ def main():
                 if extra.strip().lower() != "yes":
                     print("Command skipped.")
                     continue
-            approve = input("Execute? (press enter for yes, 'n' for no): ")
+
+            if action == "auto":
+                approve = ""
+            else:
+                approve = input("Execute? (press enter for yes, 'n' for no): ")
+
             if approve.strip().lower() != "n":
                 print(f"Running: {command}")
                 output, success = run_command(command)

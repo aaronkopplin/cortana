@@ -303,6 +303,48 @@ def test_dangerous_command_blocked(monkeypatch, tmp_path):
     assert "Dangerous command detected" not in out
 
 
+def test_auto_approve(monkeypatch, tmp_path):
+    prefs = tmp_path / "prefs.yaml"
+    prefs.write_text("")
+    safety = tmp_path / "safety.yaml"
+    safety.write_text("")
+    whitelist = tmp_path / ".cortanaignore"
+    whitelist.write_text("ls\n")
+    monkeypatch.setenv("CORTANA_SAFETY_RULES", str(safety))
+    monkeypatch.setenv("CORTANA_PREFERENCES", str(prefs))
+    monkeypatch.setenv("CORTANA_WHITELIST", str(whitelist))
+    monkeypatch.setattr(cli, "run_command", lambda cmd: ("", True))
+    knowledge = tmp_path / "kb.json"
+    out, _ = run_cli_inputs(
+        monkeypatch,
+        ["show"],
+        ['{"explanation": "list", "command": "ls /"}'],
+        str(knowledge),
+    )
+    assert "Running: ls /" in out
+    assert "Execute?" not in out
+
+
+def test_default_whitelist(monkeypatch, tmp_path):
+    prefs = tmp_path / "prefs.yaml"
+    prefs.write_text("")
+    safety = tmp_path / "safety.yaml"
+    safety.write_text("")
+    monkeypatch.setenv("CORTANA_SAFETY_RULES", str(safety))
+    monkeypatch.setenv("CORTANA_PREFERENCES", str(prefs))
+    monkeypatch.delenv("CORTANA_WHITELIST", raising=False)
+    monkeypatch.setattr(cli, "run_command", lambda cmd: ("", True))
+    knowledge = tmp_path / "kb.json"
+    out, _ = run_cli_inputs(
+        monkeypatch,
+        ["show"],
+        ['{"explanation": "list", "command": "ls /"}'],
+        str(knowledge),
+    )
+    assert "Running: ls /" in out
+    assert "Execute?" not in out
+
+
 def test_invalid_json_response(monkeypatch, tmp_path):
     knowledge = tmp_path / "kb.json"
     out = run_cli_single_question(

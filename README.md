@@ -53,6 +53,10 @@ This is a simple AI agent that sits in your terminal and helps with Linux comman
 
 - `safety_rules.yaml` - Commands that need approval or are forbidden
 - `preferences.yaml` - Your personal preferences and shortcuts
+- `.cortanaignore` - List of commands that run without confirmation
+- A default whitelist includes common commands like `ls`, `cd`, `cat`, `tail`,
+  `mv`, `cp`, `grep`, and `find`
+- A sample `.cortanaignore` file is included with these defaults
 - Easy to edit and customize
 
 **Architecture**

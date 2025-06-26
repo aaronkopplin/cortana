@@ -1,0 +1,16 @@
+# Commands that run without confirmation
+ls
+pwd
+cd
+cat
+head
+tail
+cp
+mv
+touch
+mkdir
+grep
+find
+whoami
+date
+uptime

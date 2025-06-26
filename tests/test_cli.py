@@ -53,6 +53,30 @@ def run_cli_single_question(
     return output.getvalue()
 
 
+def run_cli_inputs(monkeypatch, inputs, replies, knowledge_file):
+    input_iter = iter(inputs + ["exit"])
+
+    def fake_input(prompt=""):
+        print(prompt, end="")
+        return next(input_iter)
+
+    replies_iter = iter(replies)
+    calls = []
+
+    def fake_create(**_kwargs):
+        calls.append([m.copy() for m in _kwargs.get("messages", [])])
+        return FakeResponse(next(replies_iter))
+
+    monkeypatch.setattr(builtins, "input", fake_input)
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    monkeypatch.setenv("CORTANA_KNOWLEDGE_FILE", knowledge_file)
+    monkeypatch.setattr(cli.openai.ChatCompletion, "create", fake_create, raising=False)
+    output = io.StringIO()
+    with patch("sys.stdout", output):
+        cli.main()
+    return output.getvalue(), calls
+
+
 def extract_command(text: str) -> str | None:
     for line in text.splitlines():
         if line.lower().startswith("command:"):
@@ -294,3 +318,20 @@ def test_invalid_json_response(monkeypatch, tmp_path):
     with open(knowledge) as f:
         data = json.load(f)
     assert data["commands"] == []
+
+
+def test_new_conversation_command(monkeypatch, tmp_path):
+    knowledge = tmp_path / "kb.json"
+    replies = [
+        '{"explanation": "hi", "command": ""}',
+        '{"explanation": "again", "command": ""}',
+    ]
+    out, calls = run_cli_inputs(
+        monkeypatch,
+        ["hello", "new", "hello"],
+        replies,
+        str(knowledge),
+    )
+    assert "Starting a new conversation." in out
+    assert len(calls) == 2
+    assert len(calls[1]) == 2  # system + user only

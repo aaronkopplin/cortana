@@ -112,6 +112,8 @@ def load_knowledge(path: str) -> dict:
         data["commands"] = []
     if "stats" not in data:
         data["stats"] = {}
+    if "paths" not in data:
+        data["paths"] = {}
 
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
@@ -131,6 +133,26 @@ def update_knowledge(
         entry["success"] += 1
     else:
         entry["failure"] += 1
+    paths = data.setdefault("paths", {})
+    found = []
+    try:
+        tokens = shlex.split(command)
+    except Exception:
+        tokens = []
+    for tok in tokens[1:]:
+        if tok.startswith("-"):
+            continue
+        p = tok
+        if not os.path.isabs(p):
+            p = os.path.join(CURRENT_DIR, p)
+        if os.path.exists(p):
+            found.append(os.path.abspath(p))
+    for p in found:
+        paths[p] = "directory" if os.path.isdir(p) else "file"
+    if not success:
+        for p in found:
+            if not os.path.exists(p) and p in paths:
+                del paths[p]
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
@@ -152,7 +174,17 @@ def load_rules() -> dict:
     return rules
 
 
-def build_system_prompt(history: list[dict]) -> str:
+def summarize_knowledge(data: dict) -> str:
+    info = data.get("system", {})
+    os_info = info.get("os", "")
+    paths = list(data.get("paths", {}).keys())[:5]
+    summary = f"OS: {os_info}."
+    if paths:
+        summary += " Known paths: " + ", ".join(paths)
+    return summary
+
+
+def build_system_prompt(history: list[dict], knowledge: dict) -> str:
     """Generate the system prompt including recent command history."""
     prompt = (
         "You are Cortana, a helpful assistant that suggests shell commands for"
@@ -160,6 +192,7 @@ def build_system_prompt(history: list[dict]) -> str:
         " (a short to medium length answer) and 'command' (the suggested shell"
         " command)."
     )
+    prompt += " " + summarize_knowledge(knowledge)
     if history:
         entries = []
         for h in history[-5:]:
@@ -352,7 +385,7 @@ def main():
                 )
                 return
 
-    system_prompt = build_system_prompt(knowledge.get("commands", []))
+    system_prompt = build_system_prompt(knowledge.get("commands", []), knowledge)
     messages = [{"role": "system", "content": system_prompt}]
     print("Type 'exit' to quit")
     while True:
@@ -362,6 +395,11 @@ def main():
             break
         if user_input.strip().lower() in {"exit", "quit"}:
             break
+        if user_input.strip().lower() in {"new", "reset"}:
+            print("Starting a new conversation.")
+            system_prompt = build_system_prompt(knowledge.get("commands", []), knowledge)
+            messages = [{"role": "system", "content": system_prompt}]
+            continue
         if user_input.strip().lower().startswith("plan "):
             task = user_input.split(" ", 1)[1]
             steps = review_plan(task, plan_file)

@@ -484,65 +484,66 @@ def main():
     print("Type 'exit' to quit")
 
     def converse_loop() -> None:
-        try:
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages,
-            )
-        except Exception as e:  # pragma: no cover - network errors
-            print(f"Error: {e}")
-            return
+        while True:
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=messages,
+                )
+            except Exception as e:  # pragma: no cover - network errors
+                print(f"Error: {e}")
+                return
 
-        msg = response.choices[0].message
-        raw = msg["content"].strip() if isinstance(msg, dict) else msg.content.strip()
-        data = parse_cortana_response(raw)
-        if not data:
-            print("Invalid JSON response from AI. Please try rephrasing your request.")
-            print(f"AI: {raw}")
+            msg = response.choices[0].message
+            raw = msg["content"].strip() if isinstance(msg, dict) else msg.content.strip()
+            data = parse_cortana_response(raw)
+            if not data:
+                print("Invalid JSON response from AI. Please try rephrasing your request.")
+                print(f"AI: {raw}")
+                messages.append({"role": "assistant", "content": raw})
+                return
+
+            print(f"AI: {data.explanation}")
             messages.append({"role": "assistant", "content": raw})
-            return
 
-        print(f"AI: {data.explanation}")
-        messages.append({"role": "assistant", "content": raw})
+            command = data.command
+            if not command:
+                break
 
-        command = data.command
-        if not command:
-            return
+            print(f"\nCommand: {command}")
+            action = check_command_rules(command, rules)
+            if action == "block":
+                print("Command blocked by safety rules.")
+                break
+            if action == "danger":
+                extra = input("WARNING: Dangerous command detected. Type 'yes' to run anyway: ")
+                if extra.strip().lower() != "yes":
+                    print("Command skipped.")
+                    break
+            if action == "confirm":
+                extra = input("This command requires extra confirmation. Type 'yes' to proceed: ")
+                if extra.strip().lower() != "yes":
+                    print("Command skipped.")
+                    break
 
-        print(f"\nCommand: {command}")
-        action = check_command_rules(command, rules)
-        if action == "block":
-            print("Command blocked by safety rules.")
-            return
-        if action == "danger":
-            extra = input("WARNING: Dangerous command detected. Type 'yes' to run anyway: ")
-            if extra.strip().lower() != "yes":
+            if action == "auto":
+                approve = ""
+            else:
+                approve = input("Execute? (press enter for yes, 'n' for no): ")
+
+            if approve.strip().lower() == "n":
                 print("Command skipped.")
-                return
-        if action == "confirm":
-            extra = input("This command requires extra confirmation. Type 'yes' to proceed: ")
-            if extra.strip().lower() != "yes":
-                print("Command skipped.")
-                return
+                break
 
-        if action == "auto":
-            approve = ""
-        else:
-            approve = input("Execute? (press enter for yes, 'n' for no): ")
-
-        if approve.strip().lower() == "n":
-            print("Command skipped.")
-            return
-
-        print(f"Running: {command}")
-        output, success = run_command(command)
-        update_knowledge(knowledge_file, knowledge, command, output, success)
-        messages.append(
-            {
-                "role": "user",
-                "content": f"Executed command: {command}\nSuccess: {success}\nOutput:\n{output}",
-            }
-        )
+            print(f"Running: {command}")
+            output, success = run_command(command)
+            update_knowledge(knowledge_file, knowledge, command, output, success)
+            messages.append(
+                {
+                    "role": "user",
+                    "content": f"Executed command: {command}\nSuccess: {success}\nOutput:\n{output}",
+                }
+            )
 
     while True:
         try:

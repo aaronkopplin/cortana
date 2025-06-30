@@ -433,6 +433,74 @@ def main():
     system_prompt = build_system_prompt(knowledge.get("commands", []), knowledge)
     messages = [{"role": "system", "content": system_prompt}]
     print("Type 'exit' to quit")
+    max_steps = int(os.getenv("CORTANA_MAX_STEPS", "5"))
+
+    def converse_loop() -> None:
+        steps = 0
+        while steps < max_steps:
+            steps += 1
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=messages,
+                )
+            except Exception as e:  # pragma: no cover - network errors
+                print(f"Error: {e}")
+                return
+
+            msg = response.choices[0].message
+            raw = msg["content"].strip() if isinstance(msg, dict) else msg.content.strip()
+            try:
+                data = CortanaResponse.model_validate_json(raw)
+            except ValidationError as e:
+                print("Invalid JSON response from AI. Please try rephrasing your request.")
+                print(f"AI: {raw}")
+                print(f"Details: {e}")
+                messages.append({"role": "assistant", "content": raw})
+                return
+
+            print(f"AI: {data.explanation}")
+            messages.append({"role": "assistant", "content": raw})
+
+            command = data.command
+            if not command:
+                return
+
+            print(f"\nCommand: {command}")
+            action = check_command_rules(command, rules)
+            if action == "block":
+                print("Command blocked by safety rules.")
+                return
+            if action == "danger":
+                extra = input("WARNING: Dangerous command detected. Type 'yes' to run anyway: ")
+                if extra.strip().lower() != "yes":
+                    print("Command skipped.")
+                    return
+            if action == "confirm":
+                extra = input("This command requires extra confirmation. Type 'yes' to proceed: ")
+                if extra.strip().lower() != "yes":
+                    print("Command skipped.")
+                    return
+
+            if action == "auto":
+                approve = ""
+            else:
+                approve = input("Execute? (press enter for yes, 'n' for no): ")
+
+            if approve.strip().lower() == "n":
+                print("Command skipped.")
+                return
+
+            print(f"Running: {command}")
+            output, success = run_command(command)
+            update_knowledge(knowledge_file, knowledge, command, output, success)
+            messages.append(
+                {
+                    "role": "user",
+                    "content": f"Executed command: {command}\nSuccess: {success}\nOutput:\n{output}",
+                }
+            )
+
     while True:
         try:
             user_input = input("You: ")
@@ -460,70 +528,7 @@ def main():
                 )
             continue
         messages.append({"role": "user", "content": user_input})
-        try:
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages,
-            )
-        except Exception as e:
-            print(f"Error: {e}")
-            break
-        msg = response.choices[0].message
-        if isinstance(msg, dict):
-            raw = msg["content"].strip()
-        else:
-            raw = msg.content.strip()
-        try:
-            data = CortanaResponse.model_validate_json(raw)
-        except ValidationError as e:
-            print("Invalid JSON response from AI. Please try rephrasing your request.")
-            print(f"AI: {raw}")
-            print(f"Details: {e}")
-            messages.append({"role": "assistant", "content": raw})
-            continue
-
-        print(f"AI: {data.explanation}")
-        messages.append({"role": "assistant", "content": raw})
-
-        command = data.command
-        if command:
-            print(f"\nCommand: {command}")
-            action = check_command_rules(command, rules)
-            if action == "block":
-                print("Command blocked by safety rules.")
-                continue
-            if action == "danger":
-                extra = input(
-                    "WARNING: Dangerous command detected. Type 'yes' to run anyway: "
-                )
-                if extra.strip().lower() != "yes":
-                    print("Command skipped.")
-                    continue
-            if action == "confirm":
-                extra = input(
-                    "This command requires extra confirmation. Type 'yes' to proceed: "
-                )
-                if extra.strip().lower() != "yes":
-                    print("Command skipped.")
-                    continue
-
-            if action == "auto":
-                approve = ""
-            else:
-                approve = input("Execute? (press enter for yes, 'n' for no): ")
-
-            if approve.strip().lower() != "n":
-                print(f"Running: {command}")
-                output, success = run_command(command)
-                update_knowledge(knowledge_file, knowledge, command, output, success)
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": f"Executed command: {command}\nSuccess: {success}\nOutput:\n{output}",
-                    }
-                )
-            else:
-                print("Command skipped.")
+        converse_loop()
 
 
 if __name__ == "__main__":

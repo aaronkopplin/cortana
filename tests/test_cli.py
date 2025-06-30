@@ -32,37 +32,17 @@ class FakeResponse:
 
 
 def run_cli_single_question(
-    monkeypatch, question: str, reply: str, knowledge_file: str, extra_inputs=None
+    monkeypatch, question: str, replies, knowledge_file: str, extra_inputs=None
 ) -> str:
+    if isinstance(replies, str):
+        replies = [replies]
     inputs_list = [question]
     if extra_inputs:
         inputs_list.extend(extra_inputs)
     else:
         inputs_list.append("n")
-    inputs_list.append("exit")
-    inputs = iter(inputs_list)
-
-    def fake_input(prompt=""):
-        print(prompt, end="")
-        return next(inputs)
-
-    monkeypatch.setattr(builtins, "input", fake_input)
-    monkeypatch.setenv("OPENAI_API_KEY", "test")
-    monkeypatch.setenv("CORTANA_KNOWLEDGE_FILE", knowledge_file)
-
-    def fake_create(**_kwargs):
-        return FakeResponse(reply)
-
-    monkeypatch.setattr(
-        cli.openai,
-        "OpenAI",
-        lambda **_: FakeOpenAIClient(fake_create),
-        raising=False,
-    )
-    output = io.StringIO()
-    with patch("sys.stdout", output):
-        cli.main()
-    return output.getvalue()
+    out, _ = run_cli_inputs(monkeypatch, inputs_list, replies, knowledge_file)
+    return out
 
 
 def run_cli_inputs(monkeypatch, inputs, replies, knowledge_file):
@@ -266,7 +246,10 @@ def test_command_execution_records_success(monkeypatch, tmp_path):
     out = run_cli_single_question(
         monkeypatch,
         "run it",
-        '{"explanation": "test", "command": "echo hi"}',
+        [
+            '{"explanation": "test", "command": "echo hi"}',
+            '{"explanation": "done", "command": ""}',
+        ],
         str(knowledge),
         extra_inputs=[""],
     )
@@ -335,7 +318,10 @@ def test_auto_approve(monkeypatch, tmp_path):
     out, _ = run_cli_inputs(
         monkeypatch,
         ["show"],
-        ['{"explanation": "list", "command": "ls /"}'],
+        [
+            '{"explanation": "list", "command": "ls /"}',
+            '{"explanation": "done", "command": ""}',
+        ],
         str(knowledge),
     )
     assert "Running: ls /" in out
@@ -355,7 +341,10 @@ def test_default_whitelist(monkeypatch, tmp_path):
     out, _ = run_cli_inputs(
         monkeypatch,
         ["show"],
-        ['{"explanation": "list", "command": "ls /"}'],
+        [
+            '{"explanation": "list", "command": "ls /"}',
+            '{"explanation": "done", "command": ""}',
+        ],
         str(knowledge),
     )
     assert "Running: ls /" in out

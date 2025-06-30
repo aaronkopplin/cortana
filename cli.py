@@ -468,7 +468,11 @@ def main():
         except Exception as e:
             print(f"Error: {e}")
             break
-        raw = response.choices[0].message["content"].strip()
+        msg = response.choices[0].message
+        if isinstance(msg, dict):
+            raw = msg["content"].strip()
+        else:
+            raw = msg.content.strip()
         try:
             data = CortanaResponse.model_validate_json(raw)
         except ValidationError as e:

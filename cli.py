@@ -391,7 +391,7 @@ def main():
     if not api_key:
         print("OPENAI_API_KEY not set. Please set it in your environment or .env file.")
         return
-    openai.api_key = api_key
+    client = openai.OpenAI(api_key=api_key)
 
     knowledge_file = os.getenv("CORTANA_KNOWLEDGE_FILE", "server_knowledge.json")
     knowledge = load_knowledge(knowledge_file)
@@ -461,7 +461,7 @@ def main():
             continue
         messages.append({"role": "user", "content": user_input})
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=messages,
             )

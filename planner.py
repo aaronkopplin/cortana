@@ -41,7 +41,8 @@ def generate_plan(task: str) -> List[PlanStep]:
         {"role": "system", "content": PLAN_PROMPT},
         {"role": "user", "content": task},
     ]
-    response = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=messages)
+    client = openai.OpenAI()
+    response = client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
     raw = response.choices[0].message["content"].strip()
     data = json.loads(raw)
     steps = [PlanStep(**s) for s in data.get("steps", [])]

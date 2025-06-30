@@ -10,4 +10,4 @@ fi
 
 source "$VENV_DIR/bin/activate"
 
-exec python cortana.py "$@"
+exec python3 cortana.py "$@"

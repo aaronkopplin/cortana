@@ -259,6 +259,9 @@ def test_command_execution_records_success(monkeypatch, tmp_path):
 
     assert data["commands"][-1]["success"] is True
 
+    # Cortana should automatically provide feedback after executing the command
+    assert "AI: done" in out
+
 
 def test_dangerous_command_requires_warning(monkeypatch, tmp_path):
     prefs = tmp_path / "prefs.yaml"

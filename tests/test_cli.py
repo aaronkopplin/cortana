@@ -13,7 +13,14 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Fake openai module so cli can import
-fake_openai = types.SimpleNamespace(ChatCompletion=types.SimpleNamespace())
+class FakeOpenAIClient:
+    def __init__(self, create_fn=None):
+        self.chat = types.SimpleNamespace(
+            completions=types.SimpleNamespace(create=create_fn)
+        )
+
+
+fake_openai = types.SimpleNamespace(OpenAI=lambda **_: FakeOpenAIClient())
 sys.modules["openai"] = fake_openai
 
 import cli
@@ -46,7 +53,12 @@ def run_cli_single_question(
     def fake_create(**_kwargs):
         return FakeResponse(reply)
 
-    monkeypatch.setattr(cli.openai.ChatCompletion, "create", fake_create, raising=False)
+    monkeypatch.setattr(
+        cli.openai,
+        "OpenAI",
+        lambda **_: FakeOpenAIClient(fake_create),
+        raising=False,
+    )
     output = io.StringIO()
     with patch("sys.stdout", output):
         cli.main()
@@ -70,7 +82,12 @@ def run_cli_inputs(monkeypatch, inputs, replies, knowledge_file):
     monkeypatch.setattr(builtins, "input", fake_input)
     monkeypatch.setenv("OPENAI_API_KEY", "test")
     monkeypatch.setenv("CORTANA_KNOWLEDGE_FILE", knowledge_file)
-    monkeypatch.setattr(cli.openai.ChatCompletion, "create", fake_create, raising=False)
+    monkeypatch.setattr(
+        cli.openai,
+        "OpenAI",
+        lambda **_: FakeOpenAIClient(fake_create),
+        raising=False,
+    )
     output = io.StringIO()
     with patch("sys.stdout", output):
         cli.main()

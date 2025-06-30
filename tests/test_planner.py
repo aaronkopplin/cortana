@@ -8,7 +8,14 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-fake_openai = types.SimpleNamespace(ChatCompletion=types.SimpleNamespace())
+class FakeOpenAIClient:
+    def __init__(self, create_fn=None):
+        self.chat = types.SimpleNamespace(
+            completions=types.SimpleNamespace(create=create_fn)
+        )
+
+
+fake_openai = types.SimpleNamespace(OpenAI=lambda **_: FakeOpenAIClient())
 sys.modules.setdefault("openai", fake_openai)
 
 import cli

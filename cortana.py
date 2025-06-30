@@ -3,6 +3,7 @@ import subprocess
 import json
 import yaml
 import platform
+import re
 import shutil
 import asyncio
 import argparse
@@ -60,6 +61,42 @@ CURRENT_DIR = os.getcwd()
 class CortanaResponse(BaseModel):
     explanation: str
     command: str
+
+
+def escape_inner_quotes(text: str) -> str:
+    """Escape unescaped double quotes in a string."""
+    result = []
+    escaped = False
+    for ch in text:
+        if ch == '"' and not escaped:
+            result.append('\\"')
+        else:
+            result.append(ch)
+        escaped = ch == '\\' and not escaped
+    return ''.join(result)
+
+
+def sanitize_json_quotes(raw: str) -> str:
+    """Escape problematic quotes in explanation or command fields."""
+    pattern = r'("(?:explanation|command)"\s*:\s*")(.*?)(?<!\\)"(?=\s*(?:,|}))'
+    return re.sub(
+        pattern,
+        lambda m: m.group(1) + escape_inner_quotes(m.group(2)) + '"',
+        raw,
+        flags=re.DOTALL,
+    )
+
+
+def parse_cortana_response(raw: str) -> CortanaResponse | None:
+    """Parse Cortana JSON, attempting to fix unescaped quotes."""
+    try:
+        return CortanaResponse.model_validate_json(raw)
+    except ValidationError:
+        fixed = sanitize_json_quotes(raw)
+        try:
+            return CortanaResponse.model_validate_json(fixed)
+        except ValidationError:
+            return None
 
 
 def gather_system_info() -> dict:
@@ -239,6 +276,7 @@ def build_system_prompt(history: list[dict], knowledge: dict) -> str:
         " Avoid interactive terminal programs like nano or vim; to edit"
         " files, use commands such as 'echo text > file' or the built-in"
         " 'edit <file> <content>' command."
+        " Escape any double quotes in your JSON values with a backslash."
     )
     prompt += " " + summarize_knowledge(knowledge)
     if history:
@@ -457,12 +495,10 @@ def main():
 
         msg = response.choices[0].message
         raw = msg["content"].strip() if isinstance(msg, dict) else msg.content.strip()
-        try:
-            data = CortanaResponse.model_validate_json(raw)
-        except ValidationError as e:
+        data = parse_cortana_response(raw)
+        if not data:
             print("Invalid JSON response from AI. Please try rephrasing your request.")
             print(f"AI: {raw}")
-            print(f"Details: {e}")
             messages.append({"role": "assistant", "content": raw})
             return
 

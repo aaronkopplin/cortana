@@ -18,7 +18,7 @@ class FakeOpenAIClient:
 fake_openai = types.SimpleNamespace(OpenAI=lambda **_: FakeOpenAIClient())
 sys.modules.setdefault("openai", fake_openai)
 
-import cli
+import cortana as cli
 import planner
 
 

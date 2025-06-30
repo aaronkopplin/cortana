@@ -23,7 +23,7 @@ class FakeOpenAIClient:
 fake_openai = types.SimpleNamespace(OpenAI=lambda **_: FakeOpenAIClient())
 sys.modules["openai"] = fake_openai
 
-import cli
+import cortana as cli
 
 
 class FakeResponse:
@@ -366,6 +366,20 @@ def test_invalid_json_response(monkeypatch, tmp_path):
     with open(knowledge) as f:
         data = json.load(f)
     assert data["commands"] == []
+
+
+def test_unescaped_quotes(monkeypatch, tmp_path):
+    knowledge = tmp_path / "kb.json"
+    reply = '{"explanation": "He said "hello"", "command": "echo "hi""}'
+    out = run_cli_single_question(
+        monkeypatch,
+        "quote",
+        reply,
+        str(knowledge),
+        extra_inputs=[],
+    )
+    assert 'He said "hello"' in out
+    assert 'Command: echo "hi"' in out
 
 
 def test_new_conversation_command(monkeypatch, tmp_path):

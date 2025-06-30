@@ -22,6 +22,7 @@ This is a simple AI agent that sits in your terminal and helps with command-line
 - Always asks permission before running anything potentially risky
 - Responses are structured JSON parsed with Pydantic
 - Captures results and learns from what works/doesn’t work
+- Cortana escapes any double quotes in her JSON responses
 - Tracks command success or failure to refine future suggestions
 - Maintains the current working directory across commands
 - Built-in `edit` command to modify files from the CLI
@@ -131,7 +132,7 @@ pip install -r requirements.txt
 2. Copy `.env.example` to `.env` and add your OpenAI API key.
 3. Run the chat CLI:
 ```bash
-python cli.py
+python cortana.py
 ```
    or simply execute:
 ```bash

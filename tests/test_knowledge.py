@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 fake_openai = types.SimpleNamespace()
 sys.modules.setdefault("openai", fake_openai)
 
-import cli
+import cortana as cli
 
 
 def test_load_knowledge_initializes_file(monkeypatch, tmp_path):

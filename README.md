@@ -133,4 +133,9 @@ pip install -r requirements.txt
 ```bash
 python cli.py
 ```
+   or simply execute:
+```bash
+./run_cortana.sh
+```
+which creates/activates a `.venv` and launches the CLI for you.
 

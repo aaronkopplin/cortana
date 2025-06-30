@@ -1,9 +1,9 @@
 # cortana
-Cortana is an AI CLI agent that can help you with commands and small tasks on your server. 
+Cortana is an AI CLI agent that helps you accomplish tasks by running shell commands.
 
 ## What It Does
 
-This is a simple AI agent that sits in your terminal and helps with Linux commands. You talk to it in plain English, it suggests commands, and can run them for you while showing the output in real-time. It’s particularly useful for complex tasks like setting up web servers when you’re not entirely comfortable with all the command-line details.
+This is a simple AI agent that sits in your terminal and helps with command-line tasks. You talk to it in plain English, it suggests commands, and can run them for you while showing the output in real-time. It can guide you through complex operations step by step.
 
 ## Core Features
 
@@ -77,7 +77,7 @@ This is a simple AI agent that sits in your terminal and helps with Linux comman
 - Reduces context switching between terminal and documentation
 - Builds up institutional knowledge about your specific server setup
 - Makes complex tasks more approachable for less experienced users
-- Saves time on repetitive server management tasks
+- Saves time on repetitive command-line tasks
 
 ## Simple Example Flow
 
@@ -109,7 +109,7 @@ AI: I'll list the configured nginx sites.
     Would you like details on any specific site?
 ```
 
-This is essentially a smart wrapper around the command line that makes server management more conversational and less error-prone.
+This is essentially a smart wrapper around the command line that makes complex tasks more conversational and less error-prone.
 
 ### Running Commands
 

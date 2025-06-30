@@ -231,11 +231,13 @@ def summarize_knowledge(data: dict) -> str:
 def build_system_prompt(history: list[dict], knowledge: dict) -> str:
     """Generate the system prompt including recent command history."""
     prompt = (
-        "You are Cortana, a helpful assistant that suggests shell commands for"
-        " server management. Respond ONLY in JSON with two keys: 'explanation'"
-        " (a short to medium length answer) and 'command' (the suggested shell"
-        " command). Avoid interactive terminal programs like nano or vim; to"
-        " edit files, use commands such as 'echo text > file' or the built-in"
+        "You are Cortana, a general purpose command line assistant."
+        " Learn the user's goal, gather information step by step, and"
+        " accomplish the task by running one shell command at a time."
+        " Respond ONLY in JSON with two keys: 'explanation' (a short to"
+        " medium length answer) and 'command' (the shell command to run)."
+        " Avoid interactive terminal programs like nano or vim; to edit"
+        " files, use commands such as 'echo text > file' or the built-in"
         " 'edit <file> <content>' command."
     )
     prompt += " " + summarize_knowledge(knowledge)
@@ -442,73 +444,69 @@ def main():
     system_prompt = build_system_prompt(knowledge.get("commands", []), knowledge)
     messages = [{"role": "system", "content": system_prompt}]
     print("Type 'exit' to quit")
-    max_steps = int(os.getenv("CORTANA_MAX_STEPS", "5"))
 
     def converse_loop() -> None:
-        steps = 0
-        while steps < max_steps:
-            steps += 1
-            try:
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=messages,
-                )
-            except Exception as e:  # pragma: no cover - network errors
-                print(f"Error: {e}")
-                return
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages,
+            )
+        except Exception as e:  # pragma: no cover - network errors
+            print(f"Error: {e}")
+            return
 
-            msg = response.choices[0].message
-            raw = msg["content"].strip() if isinstance(msg, dict) else msg.content.strip()
-            try:
-                data = CortanaResponse.model_validate_json(raw)
-            except ValidationError as e:
-                print("Invalid JSON response from AI. Please try rephrasing your request.")
-                print(f"AI: {raw}")
-                print(f"Details: {e}")
-                messages.append({"role": "assistant", "content": raw})
-                return
-
-            print(f"AI: {data.explanation}")
+        msg = response.choices[0].message
+        raw = msg["content"].strip() if isinstance(msg, dict) else msg.content.strip()
+        try:
+            data = CortanaResponse.model_validate_json(raw)
+        except ValidationError as e:
+            print("Invalid JSON response from AI. Please try rephrasing your request.")
+            print(f"AI: {raw}")
+            print(f"Details: {e}")
             messages.append({"role": "assistant", "content": raw})
+            return
 
-            command = data.command
-            if not command:
+        print(f"AI: {data.explanation}")
+        messages.append({"role": "assistant", "content": raw})
+
+        command = data.command
+        if not command:
+            return
+
+        print(f"\nCommand: {command}")
+        action = check_command_rules(command, rules)
+        if action == "block":
+            print("Command blocked by safety rules.")
+            return
+        if action == "danger":
+            extra = input("WARNING: Dangerous command detected. Type 'yes' to run anyway: ")
+            if extra.strip().lower() != "yes":
+                print("Command skipped.")
                 return
-
-            print(f"\nCommand: {command}")
-            action = check_command_rules(command, rules)
-            if action == "block":
-                print("Command blocked by safety rules.")
-                return
-            if action == "danger":
-                extra = input("WARNING: Dangerous command detected. Type 'yes' to run anyway: ")
-                if extra.strip().lower() != "yes":
-                    print("Command skipped.")
-                    return
-            if action == "confirm":
-                extra = input("This command requires extra confirmation. Type 'yes' to proceed: ")
-                if extra.strip().lower() != "yes":
-                    print("Command skipped.")
-                    return
-
-            if action == "auto":
-                approve = ""
-            else:
-                approve = input("Execute? (press enter for yes, 'n' for no): ")
-
-            if approve.strip().lower() == "n":
+        if action == "confirm":
+            extra = input("This command requires extra confirmation. Type 'yes' to proceed: ")
+            if extra.strip().lower() != "yes":
                 print("Command skipped.")
                 return
 
-            print(f"Running: {command}")
-            output, success = run_command(command)
-            update_knowledge(knowledge_file, knowledge, command, output, success)
-            messages.append(
-                {
-                    "role": "user",
-                    "content": f"Executed command: {command}\nSuccess: {success}\nOutput:\n{output}",
-                }
-            )
+        if action == "auto":
+            approve = ""
+        else:
+            approve = input("Execute? (press enter for yes, 'n' for no): ")
+
+        if approve.strip().lower() == "n":
+            print("Command skipped.")
+            return
+
+        print(f"Running: {command}")
+        output, success = run_command(command)
+        update_knowledge(knowledge_file, knowledge, command, output, success)
+        messages.append(
+            {
+                "role": "user",
+                "content": f"Executed command: {command}\nSuccess: {success}\nOutput:\n{output}",
+            }
+        )
 
     while True:
         try:

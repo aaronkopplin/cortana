@@ -72,6 +72,8 @@ def test_check_command_rules():
     assert cli.check_command_rules("rm file", {"blocked": ["rm"], "confirm": []}) == "block"
     assert cli.check_command_rules("sudo apt install htop", rules) == "confirm"
     assert cli.check_command_rules("rm -rf /", rules) == "danger"
+    assert cli.check_command_rules("nano file.txt", rules) == "block"
+    assert cli.check_command_rules("vim file.txt", rules) == "block"
 
 
 def test_persistent_cd(monkeypatch, tmp_path):

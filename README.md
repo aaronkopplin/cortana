@@ -25,6 +25,7 @@ This is a simple AI agent that sits in your terminal and helps with Linux comman
 - Tracks command success or failure to refine future suggestions
 - Maintains the current working directory across commands
 - Built-in `edit` command to modify files from the CLI
+- Avoid interactive editors like `nano` or `vim`; instead use `edit <file> <content>` or redirection commands
 - Multi-step automation plans via the `plan` keyword or `--plan` option
 - Plans are shown for approval and can be updated before execution
 

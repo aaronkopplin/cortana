@@ -28,6 +28,9 @@ DANGEROUS_PATTERNS = [
     "dd if=",
 ]
 
+# Commands that open interactive editors which won't work in this environment
+INTERACTIVE_COMMANDS = ["nano", "vim", "vi"]
+
 # Built-in list of commands considered safe enough to run without asking
 DEFAULT_AUTO_COMMANDS = [
     "ls",
@@ -231,7 +234,9 @@ def build_system_prompt(history: list[dict], knowledge: dict) -> str:
         "You are Cortana, a helpful assistant that suggests shell commands for"
         " server management. Respond ONLY in JSON with two keys: 'explanation'"
         " (a short to medium length answer) and 'command' (the suggested shell"
-        " command)."
+        " command). Avoid interactive terminal programs like nano or vim; to"
+        " edit files, use commands such as 'echo text > file' or the built-in"
+        " 'edit <file> <content>' command."
     )
     prompt += " " + summarize_knowledge(knowledge)
     if history:
@@ -248,6 +253,10 @@ def check_command_rules(command: str, rules: dict) -> str | None:
     for pat in rules.get("blocked", []):
         if pat and pat in command:
             return "block"
+
+    parts = shlex.split(command)
+    if parts and parts[0] in INTERACTIVE_COMMANDS:
+        return "block"
 
     for pat in DANGEROUS_PATTERNS:
         if pat in command:
